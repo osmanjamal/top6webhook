@@ -1,7 +1,6 @@
 import os
 import sys
 
-# إضافة المسار للـ PYTHONPATH
 current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(current_dir)
 
@@ -62,6 +61,7 @@ class SecurityManager:
         config['binance_futures']['testnet'] = testnet
         SecurityConfig.save_credentials(config)
         print("Credentials saved successfully!")
+        
 
     @staticmethod
     def add_ip():
@@ -87,12 +87,56 @@ class SecurityManager:
         else:
             print("No IPs configured!")
 
+
+    @staticmethod
+    def test_order():
+        """Test placing a small test order"""
+        try:
+            from components.actions.community_created_actions.crypto.binance_futures import BinanceFutures
+            binance = BinanceFutures()
+
+            # Test data for a very small BTCUSDT order
+            test_data = {
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "amount": 0.001,  # Minimum amount
+                "stopLoss": None,
+                "takeProfit": None
+            }
+
+            print("\nPreparing test order:")
+            print(f"Symbol: {test_data['symbol']}")
+            print(f"Side: {test_data['side']}")
+            print(f"Amount: {test_data['amount']} BTC")
+            
+            # Get market info first
+            market_info = binance.exchange.fetch_ticker("BTCUSDT")
+            print(f"Current price: {market_info['last']} USDT")
+            
+            proceed = input("\nDo you want to proceed with the test order? (yes/no): ")
+            
+            if proceed.lower() == 'yes':
+                order = binance.execute_trade(test_data)
+                print("\nOrder executed successfully!")
+                print(f"Order ID: {order['id']}")
+                print(f"Status: {order['status']}")
+                print(f"Filled Amount: {order.get('filled', 0)}")
+                print(f"Average Price: {order.get('average', 0)}")
+            else:
+                print("\nTest order cancelled")
+                
+        except Exception as e:
+            print(f"\nError: {str(e)}")
+
+
+
 def main():
     commands = {
         'test-connection': SecurityManager.test_connection,
         'set-credentials': SecurityManager.set_credentials,
         'add-ip': SecurityManager.add_ip,
-        'list-ips': SecurityManager.list_ips
+        'list-ips': SecurityManager.list_ips,
+        'test-order': SecurityManager.test_order  # إضافة هذا السطر
     }
 
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
@@ -103,6 +147,10 @@ def main():
 
     command = sys.argv[1]
     commands[command]()
+
+
+
+
 
 if __name__ == "__main__":
     main()

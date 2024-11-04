@@ -121,7 +121,7 @@ class BinanceFutures(Action):
         """Test API Connection"""
         try:
             balance = self.exchange.fetch_balance()
-            account_info = self.exchange.fapiPrivateGetAccount()
+            account_info = self.exchange.fapiPrivateV2GetAccount()
             
             connection_info = {
                 "status": "success",
