@@ -7,7 +7,6 @@ class SecurityConfig:
     
     @staticmethod
     def get_config_path():
-        # الحصول على المسار الكامل للملف
         base_dir = Path(__file__).parent.parent.parent
         return os.path.join(base_dir, SecurityConfig.CONFIG_FILE)
 
@@ -20,10 +19,10 @@ class SecurityConfig:
         if not os.path.exists(config_path):
             default_config = {
                 "binance_futures": {
-                 "api_key": "your_api_key",
-                 "api_secret": "your_api_secret",
-                 "allowed_ips": ["your_ip_addresses"],
-                 "testnet": False
+                    "api_key": "",
+                    "api_secret": "",
+                    "allowed_ips": [],
+                    "testnet": False
                 }
             }
             with open(config_path, 'w') as f:

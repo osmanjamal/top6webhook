@@ -15,20 +15,9 @@ class BinanceFutures(Action):
         super().__init__()
         self.config = SecurityConfig.load_credentials()['binance_futures']
         self.setup_exchange()
-        
-    def verify_ip(self):
-        """التحقق من عنوان IP"""
-        client_ip = request.remote_addr
-        if not BinanceIPs.is_ip_allowed(client_ip):
-            error_msg = f"Unauthorized IP address: {client_ip}"
-            self.log_error(error_msg)
-            raise ValueError(error_msg)
-
-
-    
 
     def setup_exchange(self):
-        """تهيئة اتصال Binance Futures"""
+        """Initialize Binance Futures connection"""
         self.exchange = ccxt.binance({
             'apiKey': self.config['api_key'],
             'secret': self.config['api_secret'],
@@ -39,12 +28,11 @@ class BinanceFutures(Action):
             }
         })
 
-        # تعيين وضع testnet إذا كان مطلوباً
         if self.config['testnet']:
             self.exchange.set_sandbox_mode(True)
 
     def verify_ip(self):
-        """التحقق من عنوان IP"""
+        """Verify IP address"""
         client_ip = request.remote_addr
         if not SecurityConfig.validate_ip(client_ip, self.config['allowed_ips']):
             error_msg = f"Unauthorized IP address: {client_ip}"
@@ -52,11 +40,10 @@ class BinanceFutures(Action):
             raise ValueError(error_msg)
 
     def verify_request_signature(self, request_data):
-        """التحقق من توقيع الطلب"""
+        """Verify request signature"""
         if 'signature' not in request_data:
             raise ValueError("Missing signature in request")
 
-        # إنشاء التوقيع للتحقق
         timestamp = str(int(time.time() * 1000))
         message = timestamp + self.config['api_key']
         signature = hmac.new(
@@ -69,7 +56,7 @@ class BinanceFutures(Action):
             raise ValueError("Invalid request signature")
 
     def log_error(self, error_message):
-        """تسجيل الأخطاء"""
+        """Log errors"""
         log_event = LogEvent(
             self.name,
             'error',
@@ -79,7 +66,7 @@ class BinanceFutures(Action):
         log_event.write()
 
     def log_trade(self, trade_data, order_response):
-        """تسجيل تفاصيل الصفقة"""
+        """Log trade details"""
         log_event = LogEvent(
             self.name,
             'trade',
@@ -91,18 +78,16 @@ class BinanceFutures(Action):
         log_event.write()
 
     def validate_trading_params(self, data):
-        """التحقق من معلمات التداول"""
+        """Validate trading parameters"""
         required_fields = ['symbol', 'side', 'amount']
         for field in required_fields:
             if field not in data:
                 raise ValueError(f"Missing required field: {field}")
 
-        # تنسيق رمز العملة
         data['symbol'] = data['symbol'].upper()
         if not data['symbol'].endswith('USDT'):
             data['symbol'] = f"{data['symbol']}USDT"
 
-        # التحقق من حدود التداول
         market = self.exchange.market(data['symbol'])
         if float(data['amount']) < market['limits']['amount']['min']:
             raise ValueError(f"Amount {data['amount']} below minimum {market['limits']['amount']['min']}")
@@ -110,7 +95,7 @@ class BinanceFutures(Action):
         return data
 
     def prepare_order_params(self, trade_data):
-        """تحضير معلمات الأمر"""
+        """Prepare order parameters"""
         params = {
             'symbol': trade_data['symbol'],
             'type': 'MARKET',
@@ -118,7 +103,6 @@ class BinanceFutures(Action):
             'amount': float(trade_data['amount'])
         }
 
-        # إضافة Stop Loss وTake Profit إذا كانت موجودة
         if 'stopLoss' in trade_data:
             params['stopLoss'] = {
                 'type': 'STOP_MARKET',
@@ -133,13 +117,34 @@ class BinanceFutures(Action):
 
         return params
 
+    def test_api_connection(self):
+        """Test API Connection"""
+        try:
+            balance = self.exchange.fetch_balance()
+            account_info = self.exchange.fapiPrivateGetAccount()
+            
+            connection_info = {
+                "status": "success",
+                "account_type": "testnet" if self.config['testnet'] else "live",
+                "total_balance_usdt": balance['USDT']['total'] if 'USDT' in balance else 0,
+                "available_balance_usdt": balance['USDT']['free'] if 'USDT' in balance else 0,
+                "position_initial_margin": account_info.get('totalInitialMargin', 0),
+                "unrealized_pnl": account_info.get('totalUnrealizedProfit', 0)
+            }
+            
+            return connection_info
+
+        except Exception as e:
+            error_msg = f"Connection Error: {str(e)}"
+            self.log_error(error_msg)
+            return {"status": "failed", "error": error_msg}
+
     def execute_trade(self, trade_data):
-        """تنفيذ الصفقة"""
+        """Execute trade"""
         try:
             order_params = self.prepare_order_params(trade_data)
             order = self.exchange.create_order(**order_params)
             
-            # إضافة أوامر Stop Loss وTake Profit
             if 'stopLoss' in trade_data:
                 self.exchange.create_order(
                     symbol=trade_data['symbol'],
@@ -174,20 +179,12 @@ class BinanceFutures(Action):
         super().run(*args, **kwargs)
 
         try:
-            # التحقق من IP
             self.verify_ip()
-
-            # الحصول على البيانات وتحقق من صحتها
             data = self.validate_data()
             self.verify_request_signature(data)
-            
-            # تحضير وتنفيذ الصفقة
             trade_data = self.validate_trading_params(data)
             order = self.execute_trade(trade_data)
-            
-            # تسجيل الصفقة
             self.log_trade(trade_data, order)
-            
             return order
 
         except ValueError as e:
@@ -196,54 +193,3 @@ class BinanceFutures(Action):
         except Exception as e:
             self.log_error(f"Error in BinanceFutures action: {str(e)}")
             raise
-
-
-def test_api_connection(self):
-    """
-    اختبار اتصال API مع Binance Futures
-    يقوم بالتحقق من:
-    1. صحة API credentials
-    2. الوصول إلى معلومات الحساب
-    3. تحديد ما إذا كان الحساب في وضع testnet أم لا
-    """
-    try:
-        # التحقق من الاتصال والتوازن
-        balance = self.exchange.fetch_balance()
-        
-        # التحقق من معلومات الحساب
-        account_info = self.exchange.fapiPrivateGetAccount()
-        
-        # طباعة معلومات مهمة للتحقق
-        connection_info = {
-            "status": "متصل بنجاح",
-            "account_type": "testnet" if self.config['testnet'] else "حساب حقيقي",
-            "total_balance_usdt": balance['USDT']['total'] if 'USDT' in balance else 0,
-            "available_balance_usdt": balance['USDT']['free'] if 'USDT' in balance else 0,
-            "position_initial_margin": account_info.get('totalInitialMargin', 0),
-            "unrealized_pnl": account_info.get('totalUnrealizedProfit', 0),
-            "api_permissions": {
-                "spot": self.exchange.has['createOrder'],
-                "futures": self.exchange.has['createOrder'],
-                "margin": self.exchange.has['createMarginOrder']
-            }
-        }
-        
-        # تسجيل نجاح الاتصال
-        self.log_action_event('info', f"API Connection Test: {connection_info}")
-        
-        return connection_info
-
-    except ccxt.AuthenticationError as e:
-        error_msg = "فشل المصادقة: API credentials غير صحيحة"
-        self.log_error(error_msg)
-        return {"status": "فشل", "error": error_msg}
-        
-    except ccxt.NetworkError as e:
-        error_msg = f"خطأ في الشبكة: {str(e)}"
-        self.log_error(error_msg)
-        return {"status": "فشل", "error": error_msg}
-        
-    except Exception as e:
-        error_msg = f"خطأ غير متوقع: {str(e)}"
-        self.log_error(error_msg)
-        return {"status": "فشل", "error": error_msg}        

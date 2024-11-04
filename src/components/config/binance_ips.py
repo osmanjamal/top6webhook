@@ -1,5 +1,5 @@
 class BinanceIPs:
-    # Binance Official IPs - يجب تحديثها دورياً
+    # Binance Official IPs
     OFFICIAL_IPS = [
         "3.218.71.225",
         "34.198.178.193",
@@ -13,30 +13,15 @@ class BinanceIPs:
         "54.198.92.196",
         "54.208.185.213",
         "54.208.224.156",
-        "100.24.43.44",
+        "100.24.43.44"
     ]
-
-    # Custom IPs (مثل IP الخادم الخاص بك)
-    CUSTOM_IPS = []
 
     @classmethod
     def get_all_allowed_ips(cls):
         """الحصول على جميع عناوين IP المسموح بها"""
-        return cls.OFFICIAL_IPS + cls.CUSTOM_IPS
-
-    @classmethod
-    def add_custom_ip(cls, ip):
-        """إضافة IP مخصص"""
-        if ip not in cls.CUSTOM_IPS:
-            cls.CUSTOM_IPS.append(ip)
-
-    @classmethod
-    def remove_custom_ip(cls, ip):
-        """إزالة IP مخصص"""
-        if ip in cls.CUSTOM_IPS:
-            cls.CUSTOM_IPS.remove(ip)
+        return cls.OFFICIAL_IPS
 
     @classmethod
     def is_ip_allowed(cls, ip):
         """التحقق مما إذا كان IP مسموحاً به"""
-        return ip in cls.get_all_allowed_ips()
+        return ip in cls.get_all_allowed_ips() or ip == "127.0.0.1"  # السماح بـ localhost للتطوير

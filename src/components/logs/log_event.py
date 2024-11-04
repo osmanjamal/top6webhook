@@ -1,7 +1,5 @@
 from datetime import datetime
-
-from commons import LOG_LOCATION, LOG_LIMIT
-
+from components.logs.commons import LOG_LOCATION, LOG_LIMIT
 
 class LogEvent:
     def __init__(self, parent=None, event_type=None, event_time=None, event_data=None):
