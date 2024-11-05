@@ -32,64 +32,99 @@ schema_list = {
 @app.route("/", methods=["GET"])
 def dashboard():
     if request.method == 'GET':
-
-        # check if gui key file exists
         try:
+            # التحقق من وجود وصحة مفتاح واجهة المستخدم
             with open('.gui_key', 'r') as key_file:
                 gui_key = key_file.read().strip()
-                # check that the gui key from file matches the gui key from request
                 if gui_key == request.args.get('guiKey', None):
                     pass
                 else:
+                    logger.warning('Invalid GUI key provided')
                     return 'Access Denied', 401
 
-        # if gui key file does not exist, the tvwb.py did not start gui in closed mode
         except FileNotFoundError:
             logger.warning('GUI key file not found. Open GUI mode detected.')
 
-        # serve the dashboard
-        action_list = am.get_all()
-        return render_template(
-            template_name_or_list='dashboard.html',
-            schema_list=schema_list,
-            action_list=action_list,
-            event_list=registered_events,
-            version=VERSION_NUMBER
-        )
+        try:
+            # تحضير بيانات لوحة التحكم
+            action_list = am.get_all()
+            return render_template(
+                template_name_or_list='dashboard.html',
+                schema_list=schema_list,
+                action_list=action_list,
+                event_list=registered_events,
+                version=VERSION_NUMBER
+            )
+        except Exception as e:
+            logger.error(f'Error rendering dashboard: {str(e)}')
+            return str(e), 500
+
 
 
 @app.route("/webhook", methods=["POST"])
 async def webhook():
     if request.method == 'POST':
-        data = request.get_json()
-        if data is None:
-            logger.error(f'Error getting JSON data from request...')
-            logger.error(f'Request data: {request.data}')
-            logger.error(f'Request headers: {request.headers}')
-            return 'Error getting JSON data from request', 400
+        try:
+            # استلام وفحص البيانات
+            data = request.get_json()
+            if data is None:
+                logger.error('Error getting JSON data from request...')
+                logger.error(f'Request data: {request.data}')
+                logger.error(f'Request headers: {request.headers}')
+                return 'Error getting JSON data from request', 400
 
-        logger.info(f'Request Data: {data}')
-        triggered_events = []
-        for event in em.get_all():
-            if event.webhook:
-                if event.key == data['key']:
-                    event.trigger(data=data)
-                    triggered_events.append(event.name)
+            logger.info(f'Request Data: {data}')
 
-        if not triggered_events:
-            logger.warning(f'No events triggered for webhook request {request.get_json()}')
-        else:
-            logger.info(f'Triggered events: {triggered_events}')
+            # التحقق من وجود المفتاح
+            if 'key' not in data:
+                logger.error('Missing key in webhook data')
+                return 'Missing key in webhook data', 400
 
-    return Response(status=200)
+            # معالجة الأحداث
+            triggered_events = []
+            try:
+                for event in em.get_all():
+                    if event.webhook and event.key == data['key']:
+                        await event.trigger(data=data)
+                        triggered_events.append(event.name)
+                        logger.info(f'Successfully triggered event: {event.name}')
+
+                if not triggered_events:
+                    logger.warning(f'No events triggered for webhook request {data}')
+                else:
+                    logger.info(f'Triggered events: {triggered_events}')
+
+            except Exception as e:
+                logger.error(f'Error triggering events: {str(e)}')
+                return str(e), 500
+
+            # تسجيل نجاح العملية
+            log_event = LogEvent(
+                'Webhook',
+                'webhook_received',
+                None,
+                f'Successfully processed webhook for events: {", ".join(triggered_events)}'
+            )
+            log_event.write()
+
+            return Response(status=200)
+
+        except Exception as e:
+            logger.error(f'Unexpected error in webhook endpoint: {str(e)}')
+            return str(e), 500
 
 
 @app.route("/logs", methods=["GET"])
 def get_logs():
     if request.method == 'GET':
-        log_file = open(LOG_LOCATION, 'r')
-        logs = [LogEvent().from_line(log) for log in log_file.readlines()]
-        return jsonify([log.as_json() for log in logs])
+        try:
+            with open(LOG_LOCATION, 'r') as log_file:
+                logs = [LogEvent().from_line(log) for log in log_file.readlines()]
+                return jsonify([log.as_json() for log in logs])
+        except Exception as e:
+            logger.error(f'Error retrieving logs: {str(e)}')
+            return str(e), 500
+
 
 
 @app.route("/event/active", methods=["POST"])
@@ -113,4 +148,6 @@ def activate_event():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # في وضع التطوير، نستخدم debug=True
+    logger.info('Starting application in development mode...')
+    app.run(host='0.0.0.0', port=5000, debug=True)
