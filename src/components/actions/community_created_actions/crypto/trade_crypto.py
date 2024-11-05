@@ -22,3 +22,4 @@ class TradeCrypto(Action):
         print('\n\nUse the data above to make your trade!')
         print('\nhttps://github.com/ccxt/ccxt#python-1')
         print('CCXT is an example of a library you can use to make trades.\n\n')
+        

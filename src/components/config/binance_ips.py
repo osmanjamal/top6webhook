@@ -18,10 +18,9 @@ class BinanceIPs:
 
     @classmethod
     def get_all_allowed_ips(cls):
-        """الحصول على جميع عناوين IP المسموح بها"""
         return cls.OFFICIAL_IPS
 
     @classmethod
     def is_ip_allowed(cls, ip):
-        """التحقق مما إذا كان IP مسموحاً به"""
-        return ip in cls.get_all_allowed_ips() or ip == "127.0.0.1"  # السماح بـ localhost للتطوير
+        return ip in cls.get_all_allowed_ips() or ip == "127.0.0.1"
+    

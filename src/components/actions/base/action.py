@@ -75,6 +75,7 @@ class Action:
 
     def validate_data(self):
         """Ensures data is valid"""
+        
         if not self._raw_data:
             raise ValueError('No data provided to action')
         return self._raw_data

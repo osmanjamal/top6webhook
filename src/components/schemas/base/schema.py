@@ -5,3 +5,4 @@ class Schema:
 
     def as_json(self):
         raise NotImplementedError
+    

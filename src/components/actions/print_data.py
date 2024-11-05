@@ -11,5 +11,6 @@ class PrintData(Action):
         Custom run method. Add your custom logic here.
         """
         print(self.name, '---> action has run!')
-        data = self.validate_data()  # always get data from webhook by calling this method!
+        data = self.validate_data()  
+        # always get data from webhook by calling this method!
         print('Data from webhook:', data)

@@ -22,7 +22,7 @@ class Order(Schema):
         }
         return json.dumps(as_dict)
 
-class Position(Schema):
+class  Position(Schema):
     def __init__(self):
         super().__init__()
         self.symbol: str = 'XBTUSD'

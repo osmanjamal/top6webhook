@@ -7,8 +7,6 @@ import hmac
 import hashlib
 import time
 from flask import request
-from components.config.binance_ips import BinanceIPs
-
 
 class BinanceFutures(Action):
     def __init__(self):
@@ -16,28 +14,127 @@ class BinanceFutures(Action):
         self.config = SecurityConfig.load_credentials()['binance_futures']
         self.setup_exchange()
 
+    
     def setup_exchange(self):
         """Initialize Binance Futures connection"""
-        self.exchange = ccxt.binance({
-            'apiKey': self.config['api_key'],
-            'secret': self.config['api_secret'],
-            'enableRateLimit': True,
-            'options': {
-                'defaultType': 'future',
-                'adjustForTimeDifference': True
+        try:
+            print("\nDetailed Debug Information:")
+            print(f"API Key (first 5 chars): {self.config['api_key'][:5]}...")
+            print(f"API Secret (first 5 chars): {self.config['api_secret'][:5]}...")
+            print(f"TestNet Mode: {self.config['testnet']}")
+            print(f"Allowed IPs: {self.config['allowed_ips']}")
+            
+            print("\nSetting up exchange connection...")
+            
+            # تكوين محسن للاتصال
+            exchange_config = {
+                'apiKey': self.config['api_key'].strip(),
+                'secret': self.config['api_secret'].strip(),
+                'enableRateLimit': True,
+                'options': {
+                    'defaultType': 'future',
+                    'adjustForTimeDifference': True,
+                    'recvWindow': 60000,
+                    'warnOnFetchOHLCVLimitArgument': True,
+                    'createMarketBuyOrderRequiresPrice': False
+                }
             }
-        })
 
-        if self.config['testnet']:
-            self.exchange.set_sandbox_mode(True)
+            self.exchange = ccxt.binance(exchange_config)
 
-    def verify_ip(self):
-        """Verify IP address"""
-        client_ip = request.remote_addr
-        if not SecurityConfig.validate_ip(client_ip, self.config['allowed_ips']):
-            error_msg = f"Unauthorized IP address: {client_ip}"
-            self.log_error(error_msg)
-            raise ValueError(error_msg)
+            if self.config['testnet']:
+                print("Setting up TestNet mode...")
+                self.exchange.set_sandbox_mode(True)
+            else:
+                print("Setting up Live mode...")
+
+            # اختبار أساسي للوقت
+            print("\n1. Testing server time...")
+            serverTime = self.exchange.publicGetTime()
+            print(f"Server Time Response: {serverTime}")
+
+            # اختبار معلومات التداول العامة
+            print("\n2. Testing public endpoints...")
+            try:
+                exchangeInfo = self.exchange.fapiPublicGetExchangeInfo()
+                print("Successfully accessed public futures endpoints")
+            except Exception as e:
+                print(f"Error accessing public endpoints: {str(e)}")
+                raise
+
+            # اختبار الوصول للحساب
+            print("\n3. Testing account access...")
+            try:
+                print("Attempting to fetch account balance...")
+                balance = self.exchange.fapiPrivateV2GetBalance()
+                print("Successfully fetched balance")
+                print(f"Balance response: {balance}")
+            except Exception as e:
+                print(f"\nError accessing account: {str(e)}")
+                print("\nPossible solutions:")
+                print("1. Verify API key permissions:")
+                print("   - Enable Reading")
+                print("   - Enable Futures")
+                print("   - Enable Spot & Margin Trading")
+                print("2. Check IP restrictions:")
+                print(f"   - Your current IP: 31.218.96.211")
+                print("3. Ensure Futures account is activated:")
+                print("   - Go to Binance Futures")
+                print("   - Complete account activation if needed")
+                print("   - Transfer some USDT to Futures wallet")
+                raise
+
+            # اختبار معلومات الحساب
+            print("\n4. Testing futures account details...")
+            try:
+                futuresAccount = self.exchange.fapiPrivateV2GetAccount()
+                print("Successfully fetched account details")
+                
+                wallet_balance = float(futuresAccount.get('totalWalletBalance', 0))
+                unrealized_pnl = float(futuresAccount.get('totalUnrealizedProfit', 0))
+                margin_balance = float(futuresAccount.get('totalMarginBalance', 0))
+                
+                print("\nAccount Summary:")
+                print(f"Wallet Balance: {wallet_balance:.2f} USDT")
+                print(f"Unrealized PNL: {unrealized_pnl:.2f} USDT")
+                print(f"Margin Balance: {margin_balance:.2f} USDT")
+                
+                return {
+                    "status": "success",
+                    "account_type": "live",
+                    "wallet_balance": wallet_balance,
+                    "unrealized_pnl": unrealized_pnl,
+                    "margin_balance": margin_balance
+                }
+                
+            except Exception as e:
+                print(f"\nError accessing futures account: {str(e)}")
+                raise
+
+        except Exception as e:
+            print(f"\nDetailed Error in setup_exchange: {str(e)}")
+            if "Invalid API-key" in str(e):
+                print("\nAPI Configuration Issue:")
+                print("1. Go to Binance.com -> API Management")
+                print("2. Delete existing API key")
+                print("3. Create new API key with these settings:")
+                print("   [✓] Enable Reading")
+                print("   [✓] Enable Spot & Margin Trading")
+                print("   [✓] Enable Futures")
+                print("4. Add IP restriction:")
+                print("   - Add: 31.218.96.211")
+                print("5. Update credentials using:")
+                print("   python -m src.utils.manage_security set-credentials")
+            raise
+
+        except Exception as e:
+            print(f"\nDetailed Error in setup_exchange: {str(e)}")
+            if "Invalid API-key" in str(e):
+                print("\nAPI Permissions Issue:")
+                print("1. Check IP whitelist on Binance")
+                print("2. Verify API permissions are enabled")
+                print("3. Ensure Futures trading is activated")
+            raise
 
     def verify_request_signature(self, request_data):
         """Verify request signature"""
@@ -67,13 +164,16 @@ class BinanceFutures(Action):
 
     def log_trade(self, trade_data, order_response):
         """Log trade details"""
+        message = (
+            f"Trade executed - Symbol: {trade_data['symbol']}, "
+            f"Side: {trade_data['side']}, "
+            f"Order ID: {order_response['id']}"
+        )
         log_event = LogEvent(
             self.name,
             'trade',
             datetime.datetime.now(),
-            f"Trade executed - Symbol: {trade_data['symbol']}, "
-            f"Side: {trade_data['side']}, "
-            f"Order ID: {order_response['id']}"
+            message
         )
         log_event.write()
 
@@ -89,80 +189,44 @@ class BinanceFutures(Action):
             data['symbol'] = f"{data['symbol']}USDT"
 
         market = self.exchange.market(data['symbol'])
-        if float(data['amount']) < market['limits']['amount']['min']:
-            raise ValueError(f"Amount {data['amount']} below minimum {market['limits']['amount']['min']}")
-
+        min_amount = market['limits']['amount']['min']
+        if float(data['amount']) < min_amount:
+            raise ValueError(
+                f"Amount {data['amount']} below minimum {min_amount}"
+            )
         return data
-
-    def prepare_order_params(self, trade_data):
-        """Prepare order parameters"""
-        params = {
-            'symbol': trade_data['symbol'],
-            'type': 'MARKET',
-            'side': trade_data['side'].upper(),
-            'amount': float(trade_data['amount'])
-        }
-
-        if 'stopLoss' in trade_data:
-            params['stopLoss'] = {
-                'type': 'STOP_MARKET',
-                'price': float(trade_data['stopLoss'])
-            }
-
-        if 'takeProfit' in trade_data:
-            params['takeProfit'] = {
-                'type': 'TAKE_PROFIT_MARKET',
-                'price': float(trade_data['takeProfit'])
-            }
-
-        return params
-
-    def test_api_connection(self):
-        """Test API Connection"""
-        try:
-            balance = self.exchange.fetch_balance()
-            account_info = self.exchange.fapiPrivateV2GetAccount()
-            
-            connection_info = {
-                "status": "success",
-                "account_type": "testnet" if self.config['testnet'] else "live",
-                "total_balance_usdt": balance['USDT']['total'] if 'USDT' in balance else 0,
-                "available_balance_usdt": balance['USDT']['free'] if 'USDT' in balance else 0,
-                "position_initial_margin": account_info.get('totalInitialMargin', 0),
-                "unrealized_pnl": account_info.get('totalUnrealizedProfit', 0)
-            }
-            
-            return connection_info
-
-        except Exception as e:
-            error_msg = f"Connection Error: {str(e)}"
-            self.log_error(error_msg)
-            return {"status": "failed", "error": error_msg}
 
     def execute_trade(self, trade_data):
         """Execute trade"""
         try:
-            order_params = self.prepare_order_params(trade_data)
-            order = self.exchange.create_order(**order_params)
+            order_params = {
+                'symbol': trade_data['symbol'],
+                'type': 'MARKET',
+                'side': trade_data['side'].upper(),
+                'amount': float(trade_data['amount'])
+            }
             
+            order = self.exchange.create_order(**order_params)
+
             if 'stopLoss' in trade_data:
+                sl_side = 'sell' if trade_data['side'].lower() == 'buy' else 'buy'
                 self.exchange.create_order(
                     symbol=trade_data['symbol'],
                     type='STOP_MARKET',
-                    side='sell' if trade_data['side'].lower() == 'buy' else 'buy',
+                    side=sl_side,
                     amount=float(trade_data['amount']),
                     price=float(trade_data['stopLoss'])
                 )
 
             if 'takeProfit' in trade_data:
+                tp_side = 'sell' if trade_data['side'].lower() == 'buy' else 'buy'
                 self.exchange.create_order(
                     symbol=trade_data['symbol'],
                     type='TAKE_PROFIT_MARKET',
-                    side='sell' if trade_data['side'].lower() == 'buy' else 'buy',
+                    side=tp_side,
                     amount=float(trade_data['amount']),
                     price=float(trade_data['takeProfit'])
                 )
-
             return order
 
         except ccxt.NetworkError as e:
@@ -177,7 +241,6 @@ class BinanceFutures(Action):
 
     def run(self, *args, **kwargs):
         super().run(*args, **kwargs)
-
         try:
             self.verify_ip()
             data = self.validate_data()
@@ -186,10 +249,54 @@ class BinanceFutures(Action):
             order = self.execute_trade(trade_data)
             self.log_trade(trade_data, order)
             return order
-
         except ValueError as e:
             self.log_error(f"Validation error: {str(e)}")
             raise
         except Exception as e:
             self.log_error(f"Error in BinanceFutures action: {str(e)}")
             raise
+
+    def test_api_connection(self):
+        """Test API connection and fetch account info"""
+        try:
+            print("\nTesting API Connection...")
+            print(f"Current IP: {request.remote_addr if request else 'Not in request context'}")
+            
+            # Test basic connection
+            print("\n1. Testing basic connectivity...")
+            time = self.exchange.fetch_time()
+            print(f"Server time: {datetime.datetime.fromtimestamp(time/1000)}")
+            
+            # Test futures account access
+            print("\n2. Testing futures account access...")
+            balance = self.exchange.fetch_balance()
+            print(f"Raw balance response: {balance}")
+            
+            # Get detailed account info
+            print("\n3. Getting account details...")
+            account = self.exchange.fapiPrivateV2GetAccount()
+            print(f"Raw account response: {account}")
+            
+            return {
+                "status": "success",
+                "account_type": "testnet" if self.config['testnet'] else "live",
+                "total_balance_usdt": balance.get('USDT', {}).get('total', 0),
+                "available_balance_usdt": balance.get('USDT', {}).get('free', 0),
+                "position_initial_margin": account.get('totalInitialMargin', 0),
+                "unrealized_pnl": account.get('totalUnrealizedProfit', 0)
+            }
+            
+        except ccxt.NetworkError as e:
+            error_msg = f"Network Error: {str(e)}"
+            print(f"\nNetwork Error Details: {error_msg}")
+            return {"status": "failed", "error": error_msg}
+            
+        except ccxt.ExchangeError as e:
+            error_msg = f"Exchange Error: {str(e)}"
+            print(f"\nExchange Error Details: {error_msg}")
+            return {"status": "failed", "error": error_msg}
+            
+        except Exception as e:
+            error_msg = f"Unexpected Error: {str(e)}"
+            print(f"\nUnexpected Error Details: {error_msg}")
+            return {"status": "failed", "error": error_msg}

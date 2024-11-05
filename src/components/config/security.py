@@ -3,8 +3,7 @@ import json
 from pathlib import Path
 
 class SecurityConfig:
-    CONFIG_FILE = 'config/credentials.json'
-    
+    CONFIG_FILE = 'config/credentials.json'    
     @staticmethod
     def get_config_path():
         base_dir = Path(__file__).parent.parent.parent
@@ -15,10 +14,9 @@ class SecurityConfig:
         config_path = SecurityConfig.get_config_path()
         if not os.path.exists(os.path.dirname(config_path)):
             os.makedirs(os.path.dirname(config_path))
-        
-        if not os.path.exists(config_path):
-            default_config = {
-                "binance_futures": {
+            if not os.path.exists(config_path):
+               default_config = {
+                    "binance_futures": {
                     "api_key": "",
                     "api_secret": "",
                     "allowed_ips": [],
