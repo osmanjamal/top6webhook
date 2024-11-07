@@ -1,51 +1,81 @@
 $(document).ready(function() {
-    function getLogData() {
+    const LOG_REFRESH_INTERVAL = 5000; // 5 seconds
+    let lastLogTimestamp = null;
+
+    function formatTimestamp(timestamp) {
+        return new Date(timestamp).toLocaleString();
+    }
+
+    function formatLogLevel(level) {
+        const levelColors = {
+            'INFO': 'text-info',
+            'WARNING': 'text-warning',
+            'ERROR': 'text-danger',
+            'SUCCESS': 'text-success'
+        };
+        return `<span class="${levelColors[level] || 'text-secondary'}">${level}</span>`;
+    }
+
+    function createLogEntry(log) {
+        return `
+            <div class="log-entry">
+                <div class="d-flex justify-content-between">
+                    <span class="fw-bold">${log.parent}</span>
+                    <small class="text-muted">${formatTimestamp(log.event_time)}</small>
+                </div>
+                <div class="mt-1">
+                    ${formatLogLevel(log.event_type)} ${log.event_data}
+                </div>
+            </div>
+        `;
+    }
+
+    function updateLogs() {
         $.ajax({
             url: '/logs',
-            type: 'GET',
-            success: function(data) {
-                data.reverse();
-                updateLogs(data.slice(0, 20));
+            method: 'GET',
+            data: lastLogTimestamp ? { since: lastLogTimestamp } : {},
+            success: function(logs) {
+                if (logs.length > 0) {
+                    // Update last timestamp
+                    lastLogTimestamp = logs[logs.length - 1].event_time;
+                    
+                    // Add new logs
+                    const logContainer = $('#logContainer');
+                    logs.forEach(log => {
+                        logContainer.prepend(createLogEntry(log));
+                    });
+                    
+                    // Limit number of visible logs
+                    const maxLogs = 100;
+                    $('.log-entry:gt(' + (maxLogs - 1) + ')').remove();
+                }
             },
-            error: function(error) {
+            error: function(xhr, status, error) {
                 console.error('Error fetching logs:', error);
             }
         });
     }
 
-    function updateLogs(logs) {
-        const logContainer = $('#logContainer');
-        logContainer.empty();
-
-        logs.forEach(log => {
-            const logEntry = $('<div>')
-                .addClass('log-entry mb-2 p-2 border-bottom');
-
-            const header = $('<div>')
-                .addClass('d-flex justify-content-between mb-1');
-
-            const source = $('<span>')
-                .addClass('fw-bold text-primary')
-                .text(log.parent);
-
-            const timestamp = $('<span>')
-                .addClass('text-muted small')
-                .text(new Date(log.event_time).toLocaleString());
-
-            header.append(source, timestamp);
-
-            const message = $('<div>')
-                .addClass('small')
-                .text(log.event_data);
-
-            logEntry.append(header, message);
-            logContainer.append(logEntry);
-        });
-    }
-
     // Initial load
-    getLogData();
+    updateLogs();
 
-    // Refresh every 5 seconds
-    setInterval(getLogData, 5000);
+    // Set up auto-refresh
+    setInterval(updateLogs, LOG_REFRESH_INTERVAL);
+
+    // Clear logs function
+    window.clearLogs = function() {
+        $.ajax({
+            url: '/logs/clear',
+            method: 'POST',
+            success: function() {
+                $('#logContainer').empty();
+                lastLogTimestamp = null;
+                showAlert('success', 'Logs cleared successfully');
+            },
+            error: function(xhr, status, error) {
+                showAlert('danger', 'Error clearing logs: ' + error);
+            }
+        });
+    };
 });

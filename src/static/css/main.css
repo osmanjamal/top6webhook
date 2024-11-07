@@ -1,33 +1,106 @@
+/* Main Styles */
 body {
     background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.beta-tag {
-    background: #fd5447;
-    position: fixed;
-    top: -5px;
-    left: 50px;
-    padding: 0.5rem;
-    font-weight: bold;
-    border-radius: 10px;
-}
-
-code {
-    background-color: #f8f9fa;
-    padding: 0.2rem 0.4rem;
-    border-radius: 4px;
-}
-
-.alert {
-    margin-bottom: 0.5rem;
-}
-
+/* Card Styles */
 .card {
-    border: none;
     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1rem;
+    border: none;
 }
 
 .card-header {
-    background-color: white;
+    background-color: #fff;
+    font-weight: 500;
     border-bottom: 1px solid rgba(0,0,0,.125);
+}
+
+/* Log Container */
+.log-container {
+    height: 400px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    font-family: 'Consolas', monospace;
+}
+
+.log-entry {
+    padding: 0.5rem;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.log-entry:hover {
+    background: #fff;
+}
+
+/* Code Display */
+.code {
+    font-family: 'Consolas', monospace;
+    background: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+}
+
+/* Alerts */
+#alerts {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1050;
+}
+
+.alert {
+    max-width: 400px;
+    margin-bottom: 1rem;
+}
+
+/* Tables */
+.table th {
+    font-weight: 500;
+    background-color: #f8f9fa;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+/* Forms */
+.form-control:focus {
+    box-shadow: none;
+    border-color: #80bdff;
+}
+
+/* Buttons */
+.btn-icon {
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+}
+
+/* Status Badges */
+.badge {
+    padding: 0.5em 0.8em;
+}
+
+/* Navbar */
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+}
+
+.navbar-brand img {
+    height: 40px;
+    margin-right: 0.5rem;
+}
+
+/* Modal */
+.modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.modal-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
 }
