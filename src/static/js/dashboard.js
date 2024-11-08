@@ -328,11 +328,28 @@ function updateActiveEvents() {
 }
 
 // تحديث كل البيانات
+// في dashboard.js
 function updateDashboard() {
-    updateAccountInfo();
-    updateActiveEvents();
-    // يمكن إضافة المزيد من التحديثات هنا
+    // تحديث البيانات المباشرة
+    fetch('/api/dashboard/status')
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'success') {
+                updateAccountInfo(data.data.account);
+                updatePositionsTable(data.data.positions);
+            }
+        });
+
+    // تحديث السجل التاريخي
+    fetch('/api/dashboard/history')
+        .then(response => response.json())
+        .then(data => {
+            updateHistoryChart(data);
+        });
 }
+
+// تحديث كل 30 ثانية
+setInterval(updateDashboard, 30000);
 
 // بدء التحديثات التلقائية
 $(document).ready(function() {
