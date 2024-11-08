@@ -202,29 +202,23 @@
             <div class="card bg-primary text-white h-100">
                 <div class="card-body">
                     <h6 class="card-title">Total Balance</h6>
-                    <h3 class="mb-0" id="totalBalance">$0.00</h3>
+                    <h3 id="totalBalance" class="mb-0">$0.00</h3>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3">
-            <div class="card bg-success text-white h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Available Balance</h6>
-                    <h3 class="mb-0" id="availableBalance">$0.00</h3>
-                </div>
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <h6 class="card-title">Available Balance</h6>
+                <h3 id="availableBalance" class="mb-0">$0.00</h3>
             </div>
         </div>
         
-        <div class="col-md-3">
-            <div class="card bg-info text-white h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Open Positions</h6>
-                    <h3 class="mb-0" id="openPositions">0</h3>
-                </div>
-            </div>
-        </div>
         
+        <table id="positionsTable">
+            <tbody id="positionsBody">
+            </tbody>
+        </table>
         <div class="col-md-3">
             <div class="card bg-warning text-dark h-100">
                 <div class="card-body">
@@ -1174,3 +1168,47 @@ document.querySelector('.sidebar').addEventListener('mouseleave', function() {
 </script>
 </body>
 </html>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+    // إنشاء اتصال Socket
+    var socket = io();
+    
+    // استقبال التحديثات
+    socket.on('update_data', function(data) {
+        console.log('Received update:', data); // للتأكد من وصول البيانات
+        
+        // تحديث الأرصدة
+        document.getElementById('totalBalance').textContent = 
+            '$' + parseFloat(data.total_balance).toFixed(2);
+        
+        document.getElementById('availableBalance').textContent = 
+            '$' + parseFloat(data.available_balance).toFixed(2);
+        
+        // تحديث جدول المراكز
+        var tbody = document.getElementById('positionsBody');
+        tbody.innerHTML = '';
+        
+        data.positions.forEach(function(pos) {
+            var row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${pos.symbol}</td>
+                <td>${pos.side}</td>
+                <td>${pos.size}</td>
+                <td>${parseFloat(pos.entryPrice).toFixed(2)}</td>
+                <td>${parseFloat(pos.markPrice).toFixed(2)}</td>
+                <td>${parseFloat(pos.unrealizedPnl).toFixed(2)}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    });
+
+    // تأكيد الاتصال
+    socket.on('connect', function() {
+        console.log('Connected to server');
+    });
+
+    // في حالة قطع الاتصال
+    socket.on('disconnect', function() {
+        console.log('Disconnected from server');
+    });
+</script>

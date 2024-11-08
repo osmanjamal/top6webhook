@@ -8,6 +8,9 @@ import time
 import hmac
 import hashlib
 import psutil
+from flask_socketio import SocketIO, emit
+import threading
+
 
 # Flask imports
 from flask import Flask, request, jsonify, render_template, Response
@@ -34,6 +37,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///dashboard.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
+# تهيئة SocketIO
+socketio = SocketIO(app)
+
+
 # إنشاء قاعدة البيانات
 with app.app_context():
     db.create_all()
@@ -55,6 +62,25 @@ schema_list = {
     'order': Order().as_json(),
     'position': Position().as_json()
 }
+def update_data():
+    while True:
+        try:
+            if binance_manager.exchange:
+                account_data = binance_manager.get_account_info()
+                balance_info = binance_manager.get_balance()
+                positions = binance_manager.get_open_positions()
+                
+                data = {
+                    "total_balance": account_data.get("totalWalletBalance", 0),
+                    "available_balance": balance_info.get("free", {}).get("USDT", 0),
+                    "pnl": account_data.get("totalUnrealizedProfit", 0),
+                    "positions": positions
+                }
+                
+                socketio.emit('update_data', data)
+            time.sleep(2)  # تحديث كل ثانيتين
+        except Exception as e:
+            logger.error(f"Update error: {str(e)}")
 
 # Register components
 def initialize_components():
@@ -505,7 +531,20 @@ def get_dashboard_status():
             "status": "error",
             "message": str(e)
         }), 500
-
+def ensure_gui_key():
+    """إنشاء مفتاح GUI إذا لم يكن موجوداً"""
+    gui_key_path = os.path.join(os.path.dirname(__file__), '.gui_key')
+    if not os.path.exists(gui_key_path):
+        # إنشاء مفتاح عشوائي
+        import secrets
+        gui_key = secrets.token_urlsafe(32)
+        with open(gui_key_path, 'w') as f:
+            f.write(gui_key)
+        logger.info(f"Created new GUI key")
+    else:
+        with open(gui_key_path, 'r') as f:
+            gui_key = f.read().strip()
+    return gui_key
 @app.route("/api/dashboard/settings", methods=["GET", "POST"])
 @verify_ip
 def manage_dashboard_settings():
@@ -860,16 +899,29 @@ def initialize_application():
 
 if __name__ == '__main__':
     try:
-        initialize_application()
+        # إنشاء مفتاح GUI
+        gui_key = ensure_gui_key()
+        
+        # تهيئة قاعدة البيانات
+        with app.app_context():
+            db.create_all()
+        
+        # تهيئة المكونات
+        initialize_components()
+        
+        # بدء thread التحديث
+        update_thread = threading.Thread(target=update_data)
+        update_thread.daemon = True
+        update_thread.start()
+        
+        logger.info(f"Dashboard available at: http://127.0.0.1:5000/?guiKey={gui_key}")
         
         # تشغيل التطبيق
-        app.run(
-            host='0.0.0.0',
+        socketio.run(app, 
+            host='127.0.0.1',  # تغيير من 0.0.0.0 إلى 127.0.0.1
             port=5000,
-            debug=True,
-            use_reloader=True
+            debug=True
         )
-        
     except Exception as e:
         logger.error(f"Failed to start application: {str(e)}")
         raise
